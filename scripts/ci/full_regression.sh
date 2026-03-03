@@ -12,8 +12,8 @@ cargo test --all-features
 if ! cargo audit --version >/dev/null 2>&1; then
   case "$(uname -s)-$(uname -m)" in
     Linux-x86_64)
-      AUDIT_ASSET="cargo-audit-x86_64-unknown-linux-gnu-v0.22.1.tgz"
-      AUDIT_DIR="cargo-audit-x86_64-unknown-linux-gnu-v0.22.1"
+      AUDIT_ASSET="cargo-audit-x86_64-unknown-linux-musl-v0.22.1.tgz"
+      AUDIT_DIR="cargo-audit-x86_64-unknown-linux-musl-v0.22.1"
       ;;
     *)
       echo "cargo-audit is missing and no bootstrap binary is configured for this platform" >&2

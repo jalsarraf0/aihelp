@@ -11,10 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: |
-          if ! cargo audit --version >/dev/null 2>&1; then
-            cargo install cargo-audit
-          fi
+      - name: Bootstrap cargo-audit
+        run: bash scripts/ci/bootstrap_cargo_audit.sh
       - name: Audit dependencies
         run: cargo audit

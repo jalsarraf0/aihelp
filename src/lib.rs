@@ -91,6 +91,7 @@ pub struct EffectiveSettings {
 }
 
 pub async fn run(cli: Cli) -> Result<()> {
+    install_rustls_provider();
     init_tracing(cli.quiet);
 
     let noninteractive_forced = std::env::var("AIHELP_NONINTERACTIVE")
@@ -222,4 +223,8 @@ fn init_tracing(quiet: bool) {
         .with_target(false)
         .with_writer(std::io::stderr)
         .try_init();
+}
+
+fn install_rustls_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
 }

@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  regression-security:
+    runs-on: [self-hosted, linux, x64, aihelp]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run full regression and security gate
+        run: bash scripts/ci/full_regression.sh
+
+  cross-target-check:
+    runs-on: [self-hosted, linux, x64, aihelp]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add compile-only targets
+        run: |
+          rustup target add x86_64-pc-windows-gnu
+          rustup target add x86_64-apple-darwin
+
+      - name: Cross-target compile checks
+        run: |
+          cargo check --target x86_64-pc-windows-gnu
+          cargo check --target x86_64-apple-darwin

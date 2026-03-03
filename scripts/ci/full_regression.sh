@@ -10,7 +10,11 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
 
 if ! cargo audit --version >/dev/null 2>&1; then
-  cargo install cargo-audit
+  if command -v clang >/dev/null 2>&1 && command -v clang++ >/dev/null 2>&1; then
+    export CC=clang
+    export CXX=clang++
+  fi
+  cargo install --locked cargo-audit
 fi
 
 cargo audit

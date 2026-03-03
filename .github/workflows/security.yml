@@ -1,0 +1,20 @@
+name: security
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * 1"
+
+jobs:
+  cargo-audit:
+    runs-on: [self-hosted, linux, x64, aihelp]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: |
+          if ! cargo audit --version >/dev/null 2>&1; then
+            cargo install cargo-audit
+          fi
+      - name: Audit dependencies
+        run: cargo audit

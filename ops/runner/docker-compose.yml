@@ -1,0 +1,23 @@
+services:
+  gha-runner-aihelp:
+    image: myoung34/github-runner:latest
+    container_name: gha-runner-aihelp
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      RUNNER_SCOPE: ${RUNNER_SCOPE:-repo}
+      REPO_URL: ${REPO_URL}
+      RUNNER_NAME: ${RUNNER_NAME:-aihelp-linux-docker}
+      LABELS: ${LABELS:-self-hosted,linux,x64,aihelp}
+      RUNNER_WORKDIR: ${RUNNER_WORKDIR:-/_work}
+      RUNNER_GROUP: ${RUNNER_GROUP:-Default}
+      ACCESS_TOKEN: ${ACCESS_TOKEN}
+      CONFIGURED_ACTIONS_RUNNER_FILES_DIR: ${CONFIGURED_ACTIONS_RUNNER_FILES_DIR:-/runner-state}
+      DISABLE_AUTOMATIC_DEREGISTRATION: ${DISABLE_AUTOMATIC_DEREGISTRATION:-true}
+      RUN_AS_ROOT: ${RUN_AS_ROOT:-true}
+      RANDOM_RUNNER_SUFFIX: ${RANDOM_RUNNER_SUFFIX:-false}
+    volumes:
+      - ./state:/runner-state
+      - ./work:/_work
+      - /var/run/docker.sock:/var/run/docker.sock

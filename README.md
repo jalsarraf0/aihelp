@@ -17,6 +17,8 @@ aihelp "Hello can you hear me?"
 ls | aihelp "what is in this directory?"
 cat script.sh | aihelp "explain what this script does and any risky commands"
 aihelp --mcp "find the right tool to search my docs for X, then summarize"
+aihelp --list-flags
+aihelp --list-models
 ```
 
 Windows PowerShell:
@@ -26,6 +28,8 @@ aihelp "Hello can you hear me?"
 Get-ChildItem | aihelp "what is in this directory?"
 Get-Content .\script.ps1 | aihelp "what does this script do?"
 aihelp --mcp "find docs about topic X and summarize"
+aihelp --list-flags
+aihelp --list-models
 ```
 
 ## First-Run MCP Prompt
@@ -48,6 +52,8 @@ Non-interactive first run defaults to MCP disabled.
 
 Core:
 
+- `--list-flags`
+- `--list-models`
 - `--endpoint <URL>`
 - `--api-key <KEY>`
 - `--model <ID>`
@@ -163,4 +169,3 @@ Then edit `/docker/aihelp/runner/.env` and start:
 cd /docker/aihelp/runner
 docker compose up -d
 ```
-

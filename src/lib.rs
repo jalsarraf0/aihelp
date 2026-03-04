@@ -5,6 +5,7 @@ pub mod mcp;
 pub mod prompt;
 
 use std::io::IsTerminal;
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -27,7 +28,7 @@ use crate::prompt::read_stdin_context;
 pub struct Cli {
     #[arg(
         value_name = "QUESTION",
-        required_unless_present_any = ["list_models", "list_flags"]
+        required_unless_present_any = ["list_models", "list_flags", "model"]
     )]
     pub question: Vec<String>,
 
@@ -122,7 +123,7 @@ pub async fn run(cli: Cli) -> Result<()> {
     let stdout_is_tty = std::io::stdout().is_terminal();
     let interactive = stdin_is_tty && stdout_is_tty;
 
-    let config = config::load_or_init_config(interactive, noninteractive_forced)
+    let mut config = config::load_or_init_config(interactive, noninteractive_forced)
         .context("failed to load configuration")?;
 
     let settings = resolve_settings(&cli, &config);
@@ -131,20 +132,37 @@ pub async fn run(cli: Cli) -> Result<()> {
         eprintln!("model: {}", settings.model);
     }
 
-    let stdin_context = read_stdin_context(settings.max_stdin_bytes)?;
-    let question = cli.question.join(" ");
-
     let client = OpenAiClient::new(
         settings.endpoint.clone(),
         settings.api_key.clone(),
         settings.timeout_secs,
     )?;
 
+    if is_model_switch_only(&cli) {
+        if !settings.dry_run {
+            client
+                .verify_model_presence(&settings.model)
+                .await
+                .context("model verification failed")?;
+        }
+
+        let outcome = persist_model_selection(&cli, &mut config)?;
+        emit_model_switch_message(&settings, outcome, cli.json, cli.quiet)?;
+        return Ok(());
+    }
+
+    let stdin_context = read_stdin_context(settings.max_stdin_bytes)?;
+    let question = cli.question.join(" ");
+
     if !settings.dry_run {
         client
             .verify_model_presence(&settings.model)
             .await
             .context("model verification failed")?;
+    }
+
+    if !settings.dry_run {
+        let _ = persist_model_selection(&cli, &mut config)?;
     }
 
     let mcp_backend = if settings.mcp_enabled {
@@ -249,6 +267,10 @@ fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
 
+fn is_model_switch_only(cli: &Cli) -> bool {
+    cli.model.is_some() && cli.question.is_empty()
+}
+
 async fn run_list_models(cli: &Cli) -> Result<()> {
     let config = load_existing_config_or_default()?;
     let settings = resolve_settings(cli, &config);
@@ -327,7 +349,7 @@ fn print_available_flags(as_json: bool) -> Result<()> {
         },
         FlagDescriptor {
             flag: "--model <ID>",
-            description: "Choose model for this run (default: openai/gpt-oss-20b).",
+            description: "Set default model in config and use it for this run.",
         },
         FlagDescriptor {
             flag: "--print-model",
@@ -375,5 +397,89 @@ fn print_available_flags(as_json: bool) -> Result<()> {
     for item in flags {
         println!("{:40} {}", item.flag, item.description);
     }
+    Ok(())
+}
+
+#[derive(Debug, Clone)]
+struct ModelSwitchOutcome {
+    previous: String,
+    current: String,
+    updated: bool,
+    config_path: PathBuf,
+}
+
+fn persist_model_selection(cli: &Cli, config: &mut AppConfig) -> Result<ModelSwitchOutcome> {
+    let requested = cli
+        .model
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(|| config.model.clone());
+    let previous = config.model.clone();
+    let updated = previous != requested;
+
+    if updated {
+        config.model = requested.clone();
+        let config_path = config::config_file_path()?;
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create config directory: {}", parent.display())
+            })?;
+        }
+        config::save_config(&config_path, config).with_context(|| {
+            format!(
+                "failed to persist selected model to {}",
+                config_path.display()
+            )
+        })?;
+
+        return Ok(ModelSwitchOutcome {
+            previous,
+            current: requested,
+            updated,
+            config_path,
+        });
+    }
+
+    let config_path = config::config_file_path()?;
+    Ok(ModelSwitchOutcome {
+        previous,
+        current: requested,
+        updated,
+        config_path,
+    })
+}
+
+fn emit_model_switch_message(
+    settings: &EffectiveSettings,
+    outcome: ModelSwitchOutcome,
+    as_json: bool,
+    quiet: bool,
+) -> Result<()> {
+    if as_json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "selected_model": settings.model,
+                "updated": outcome.updated,
+                "previous_model": outcome.previous,
+                "config_path": outcome.config_path,
+            }))?
+        );
+        return Ok(());
+    }
+
+    if outcome.updated {
+        println!(
+            "Default model switched from '{}' to '{}'.",
+            outcome.previous, outcome.current
+        );
+    } else {
+        println!("Default model already set to '{}'.", outcome.current);
+    }
+
+    if !quiet {
+        eprintln!("Config updated at {}", outcome.config_path.display());
+    }
+
     Ok(())
 }

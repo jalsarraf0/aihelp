@@ -1,14 +1,28 @@
 # aihelp
 
-`aihelp` is a cross-platform Rust CLI that sends your question (plus optional piped stdin context) to an OpenAI-compatible LM Studio endpoint, with optional MCP tool/resource discovery.
+[![CI](https://github.com/jalsarraf0/aihelp/actions/workflows/ci.yml/badge.svg)](https://github.com/jalsarraf0/aihelp/actions/workflows/ci.yml)
+[![Security](https://github.com/jalsarraf0/aihelp/actions/workflows/security.yml/badge.svg)](https://github.com/jalsarraf0/aihelp/actions/workflows/security.yml)
+[![Release](https://github.com/jalsarraf0/aihelp/actions/workflows/release.yml/badge.svg)](https://github.com/jalsarraf0/aihelp/actions/workflows/release.yml)
+
+`aihelp` is a cross-platform Rust CLI for LM Studio (OpenAI-compatible API) with optional MCP tool discovery and tool-calling orchestration.
 
 ## Install
+
+From source:
 
 ```bash
 cargo install --path .
 ```
 
-## Quick Usage
+From release binaries:
+
+- Linux: `aihelp-<tag>-x86_64-unknown-linux-gnu.tar.gz`
+- macOS: `aihelp-<tag>-x86_64-apple-darwin.tar.gz`
+- Windows: `aihelp-<tag>-x86_64-pc-windows-msvc.zip`
+
+Download from GitHub Releases: <https://github.com/jalsarraf0/aihelp/releases>
+
+## Quick Start
 
 Linux/macOS:
 
@@ -17,9 +31,6 @@ aihelp "Hello can you hear me?"
 ls | aihelp "what is in this directory?"
 cat script.sh | aihelp "explain what this script does and any risky commands"
 aihelp --mcp "find the right tool to search my docs for X, then summarize"
-aihelp --list-flags
-aihelp --list-models
-aihelp --model my-local-model
 ```
 
 Windows PowerShell:
@@ -29,33 +40,38 @@ aihelp "Hello can you hear me?"
 Get-ChildItem | aihelp "what is in this directory?"
 Get-Content .\script.ps1 | aihelp "what does this script do?"
 aihelp --mcp "find docs about topic X and summarize"
-aihelp --list-flags
-aihelp --list-models
-aihelp --model my-local-model
 ```
 
-## First-Run MCP Prompt
+## Setup Flow
 
-On first interactive run (when `config.toml` does not exist), `aihelp` asks:
+First interactive run auto-launches setup wizard and stores `config.toml`.
 
-```text
-Enable MCP server tools by default? (y/N):
+Wizard includes:
+
+- LM Studio endpoint suggestion and prompt.
+- Model detection from `/v1/models` and default-model prompt.
+- MCP default enable/disable prompt.
+- Optional local MCP HTTP endpoint auto-discovery (common localhost ports).
+
+Run setup again anytime:
+
+```bash
+aihelp --setup
 ```
 
-Then it prints one-time guidance:
+## Discoverability Commands
 
-- If yes: `MCP enabled by default. To disable MCP for a single run: aihelp --no-mcp ...`
-- If no: `MCP disabled by default. To enable MCP for a single run: aihelp --mcp ...`
-- Always: `Override anytime with --mcp or --no-mcp.`
+- List common flags quickly: `aihelp --list-flags`
+- List callable models from endpoint: `aihelp --list-models`
+- Switch default model on the fly: `aihelp --model <ID>`
 
-Non-interactive first run defaults to MCP disabled.
+`--model <ID>` behavior:
 
-## Flags
+- With no question: validates and updates config default model, then exits.
+- With a question: runs request and persists that model as default.
 
-Core:
+## Core Usage Flags
 
-- `--list-flags`
-- `--list-models`
 - `--endpoint <URL>`
 - `--api-key <KEY>`
 - `--model <ID>`
@@ -66,8 +82,11 @@ Core:
 - `--quiet`
 - `--print-model`
 - `--dry-run`
+- `--setup`
+- `--list-flags`
+- `--list-models`
 
-MCP:
+MCP flags:
 
 - `--mcp`
 - `--no-mcp`
@@ -75,13 +94,13 @@ MCP:
 - `--mcp-max-tool-calls <N>`
 - `--mcp-max-round-trips <N>`
 
-`--model <ID>` can be used standalone to switch the default model in `config.toml`, or combined with a question to both run and persist that model.
+`aihelp --help` includes an in-terminal manpage section with setup, model switching, MCP workflow, and troubleshooting reminders.
 
 ## Defaults
 
 - Endpoint: `http://192.168.50.2:1234`
 - Model: `openai/gpt-oss-20b`
-- Paths:
+- Config file:
   - Linux: `~/.config/aihelp/config.toml`
   - macOS: `~/Library/Application Support/aihelp/config.toml`
   - Windows: `%APPDATA%\aihelp\config.toml`
@@ -115,59 +134,55 @@ args = ["./path/to/mcp-server.js"]
 allowed_tools = ["list_things"]
 ```
 
-## Docker MCP Server Example
+## Safety Defaults
 
-If your MCP server container listens on port `7000` internally:
-
-```bash
-docker run --rm -p 7000:7000 your-mcp-image
-```
-
-Then point config endpoint to `http://127.0.0.1:7000/mcp`.
-
-## Safety Model
-
-- `aihelp` never executes shell commands from model text.
-- `aihelp` never edits local files from model text.
-- MCP default allow policy is `read_only`.
-- `allow_list` and `all` must be explicitly chosen.
+- No shell-command execution from model output.
+- No local file modifications from model output.
+- MCP default policy: `read_only`.
+- Write/exec-like tools blocked unless policy is loosened (`allow_list` or `all`).
 
 ## Troubleshooting
 
-### LM Studio server not reachable
+LM Studio not reachable:
 
-- Verify server is running and endpoint is correct.
-- Example: `curl http://192.168.50.2:1234/v1/models`
+- Verify endpoint and network path.
+- Check models endpoint directly: `curl <endpoint>/v1/models`
 
-### Model not loaded
+Model missing:
 
-- `aihelp` fails fast if `openai/gpt-oss-20b` is absent from `/v1/models`.
-- Load that model in LM Studio or use `--model <ID>`.
+- `aihelp` fails fast when selected model is absent.
+- Use `aihelp --list-models` then `aihelp --model <ID>`.
 
-### MCP server unreachable
+MCP server not found:
 
-- Check endpoint or stdio command path.
-- Confirm Docker port mapping exposes host endpoint.
+- Run `aihelp --setup` and enable MCP scan.
+- Confirm mapped host ports and endpoint path (`/mcp`).
 
-### MCP tool blocked by allow policy
+MCP tool blocked:
 
-- `read_only` blocks names with write/exec semantics.
-- Use `--mcp-policy allow_list` + `allowed_tools`, or `--mcp-policy all`.
+- Keep `read_only` for safety by default.
+- Override per run: `--mcp-policy allow_list` or `--mcp-policy all`.
 
-## CI/CD Runner in Docker
+## CI/CD and Security
 
-This repo includes a self-hosted GitHub Actions runner stack for full regression/security checks.
+- CI workflow (`ci.yml`) runs compile sanity + full regression and security gate.
+- Security workflow (`security.yml`) runs dependency audit.
+- Release workflow (`release.yml`) builds and publishes Linux/macOS/Windows binaries on tags.
 
-- Repo assets: `ops/runner/`
-- Host install target: `/docker/aihelp/runner`
+## Self-Hosted Runner (Optional)
 
-Install to host path:
+Repo includes a Dockerized self-hosted runner setup for full regression/security:
+
+- Assets: `ops/runner/`
+- Host path target: `/docker/aihelp/runner`
+
+Install:
 
 ```bash
 bash ops/runner/install_to_docker_aihelp.sh
 ```
 
-Then edit `/docker/aihelp/runner/.env` and start:
+Start:
 
 ```bash
 cd /docker/aihelp/runner

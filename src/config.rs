@@ -136,6 +136,28 @@ impl McpServerConfig {
     }
 }
 
+pub fn sanitized_for_display(config: &AppConfig) -> AppConfig {
+    let mut out = config.clone();
+
+    if let Some(api_key) = out.api_key.as_mut() {
+        if !api_key.is_empty() {
+            *api_key = "***REDACTED***".to_string();
+        }
+    }
+
+    for server in &mut out.mcp.servers {
+        if let McpServerConfig::Http { headers, .. } = server {
+            for (name, value) in headers.iter_mut() {
+                if is_sensitive_field_name(name) && !value.is_empty() {
+                    *value = "***REDACTED***".to_string();
+                }
+            }
+        }
+    }
+
+    out
+}
+
 pub fn config_dir() -> Result<PathBuf> {
     if let Ok(override_dir) = std::env::var("AIHELP_CONFIG_DIR") {
         return Ok(PathBuf::from(override_dir));
@@ -237,4 +259,14 @@ fn default_max_tool_calls() -> usize {
 
 fn default_max_round_trips() -> usize {
     6
+}
+
+fn is_sensitive_field_name(name: &str) -> bool {
+    let lowered = name.to_ascii_lowercase();
+    lowered.contains("auth")
+        || lowered.contains("token")
+        || lowered.contains("key")
+        || lowered.contains("secret")
+        || lowered.contains("password")
+        || lowered.contains("cookie")
 }

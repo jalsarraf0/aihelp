@@ -3,6 +3,7 @@ pub mod client;
 pub mod config;
 pub mod mcp;
 pub mod prompt;
+pub mod setup;
 
 use std::io::IsTerminal;
 use std::path::PathBuf;
@@ -18,17 +19,49 @@ use crate::client::OpenAiClient;
 use crate::config::{AppConfig, McpAllowPolicy};
 use crate::mcp::RmcpBackend;
 use crate::prompt::read_stdin_context;
+use crate::setup::run_setup_wizard;
+
+const HELP_MANPAGE: &str = r#"MANPAGE
+  aihelp [OPTIONS] <QUESTION...>
+
+SETUP
+  First run (interactive): aihelp auto-runs setup and stores config.toml.
+  Re-run setup anytime:    aihelp --setup
+  Non-interactive/CI:      set AIHELP_NONINTERACTIVE=1
+  Config override dir:     AIHELP_CONFIG_DIR=/path
+
+MODEL WORKFLOW
+  List callable models:    aihelp --list-models
+  Switch default model:    aihelp --model <ID>
+  One-off use + persist:   aihelp --model <ID> "question"
+
+MCP WORKFLOW
+  Enable per-run:          aihelp --mcp "question"
+  Disable per-run:         aihelp --no-mcp "question"
+  Setup auto-detect:       aihelp --setup (scans local MCP HTTP endpoints)
+
+EXAMPLES
+  aihelp "Hello can you hear me?"
+  ls | aihelp "what is in this directory?"
+  cat script.sh | aihelp "what does this script do?"
+
+TROUBLESHOOT
+  LM Studio models:        curl <endpoint>/v1/models
+  Endpoint override:       aihelp --endpoint http://127.0.0.1:1234 "question"
+  MCP policy override:     aihelp --mcp-policy allow_list --mcp "question"
+"#;
 
 #[derive(Debug, Parser, Clone)]
 #[command(
     name = "aihelp",
     version,
-    about = "CLI helper for LM Studio + optional MCP tools"
+    about = "CLI helper for LM Studio + optional MCP tools",
+    after_help = HELP_MANPAGE
 )]
 pub struct Cli {
     #[arg(
         value_name = "QUESTION",
-        required_unless_present_any = ["list_models", "list_flags", "model"]
+        required_unless_present_any = ["list_models", "list_flags", "model", "setup"]
     )]
     pub question: Vec<String>,
 
@@ -82,6 +115,9 @@ pub struct Cli {
 
     #[arg(long = "list-flags", conflicts_with = "list_models")]
     pub list_flags: bool,
+
+    #[arg(long = "setup")]
+    pub setup: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +142,14 @@ pub async fn run(cli: Cli) -> Result<()> {
     install_rustls_provider();
     init_tracing(cli.quiet);
 
+    let noninteractive_forced = std::env::var("AIHELP_NONINTERACTIVE")
+        .map(|v| v == "1")
+        .unwrap_or(false);
+
+    let stdin_is_tty = std::io::stdin().is_terminal();
+    let stdout_is_tty = std::io::stdout().is_terminal();
+    let interactive = stdin_is_tty && stdout_is_tty;
+
     if cli.list_flags {
         print_available_flags(cli.json)?;
         return Ok(());
@@ -115,15 +159,29 @@ pub async fn run(cli: Cli) -> Result<()> {
         return run_list_models(&cli).await;
     }
 
-    let noninteractive_forced = std::env::var("AIHELP_NONINTERACTIVE")
-        .map(|v| v == "1")
-        .unwrap_or(false);
+    if cli.setup {
+        if noninteractive_forced || !interactive {
+            anyhow::bail!(
+                "--setup requires an interactive terminal and AIHELP_NONINTERACTIVE must not be 1"
+            );
+        }
 
-    let stdin_is_tty = std::io::stdin().is_terminal();
-    let stdout_is_tty = std::io::stdout().is_terminal();
-    let interactive = stdin_is_tty && stdout_is_tty;
+        let existing = load_existing_config_or_default()?;
+        let updated = run_setup_wizard(Some(existing), cli.quiet)
+            .await
+            .context("setup failed")?;
 
-    let mut config = config::load_or_init_config(interactive, noninteractive_forced)
+        if cli.json {
+            let sanitized = config::sanitized_for_display(&updated);
+            println!("{}", serde_json::to_string_pretty(&sanitized)?);
+        } else {
+            println!("Setup complete.");
+        }
+        return Ok(());
+    }
+
+    let mut config = load_runtime_config(&cli, interactive, noninteractive_forced)
+        .await
         .context("failed to load configuration")?;
 
     let settings = resolve_settings(&cli, &config);
@@ -267,6 +325,25 @@ fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 }
 
+async fn load_runtime_config(
+    cli: &Cli,
+    interactive: bool,
+    noninteractive_forced: bool,
+) -> Result<AppConfig> {
+    let config_path = config::config_file_path()?;
+    if config_path.exists() {
+        return config::load_config(&config_path).context("failed to load existing config");
+    }
+
+    if interactive && !noninteractive_forced && !is_model_switch_only(cli) {
+        return run_setup_wizard(None, cli.quiet)
+            .await
+            .context("first-run setup failed");
+    }
+
+    config::load_or_init_config(false, true).context("failed to initialize config")
+}
+
 fn is_model_switch_only(cli: &Cli) -> bool {
     cli.model.is_some() && cli.question.is_empty()
 }
@@ -346,6 +423,10 @@ fn print_available_flags(as_json: bool) -> Result<()> {
         FlagDescriptor {
             flag: "--list-models",
             description: "List callable model IDs from <endpoint>/v1/models.",
+        },
+        FlagDescriptor {
+            flag: "--setup",
+            description: "Run interactive setup and persist endpoint/model/MCP defaults.",
         },
         FlagDescriptor {
             flag: "--model <ID>",

@@ -12,6 +12,7 @@ pub const DEFAULT_ENDPOINT: &str = "http://192.168.50.2:1234";
 pub const DEFAULT_MODEL: &str = "openai/gpt-oss-20b";
 pub const DEFAULT_MAX_STDIN_BYTES: usize = 200_000;
 pub const DEFAULT_TIMEOUT_SECS: u64 = 60;
+pub const DEFAULT_STREAM_BY_DEFAULT: bool = true;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -56,6 +57,8 @@ pub struct AppConfig {
     pub max_stdin_bytes: usize,
     #[serde(default = "default_timeout_secs")]
     pub timeout_secs: u64,
+    #[serde(default = "default_stream_by_default")]
+    pub stream_by_default: bool,
     #[serde(default)]
     pub mcp: McpConfig,
 }
@@ -68,6 +71,7 @@ impl Default for AppConfig {
             model: default_model(),
             max_stdin_bytes: default_max_stdin_bytes(),
             timeout_secs: default_timeout_secs(),
+            stream_by_default: default_stream_by_default(),
             mcp: McpConfig::default(),
         }
     }
@@ -247,6 +251,10 @@ fn default_max_stdin_bytes() -> usize {
 
 fn default_timeout_secs() -> u64 {
     DEFAULT_TIMEOUT_SECS
+}
+
+fn default_stream_by_default() -> bool {
+    DEFAULT_STREAM_BY_DEFAULT
 }
 
 fn default_allow_policy() -> McpAllowPolicy {

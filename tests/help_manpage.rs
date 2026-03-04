@@ -9,6 +9,8 @@ fn help_includes_setup_manpage_sections() {
         .success()
         .stdout(contains("MANPAGE"))
         .stdout(contains("aihelp --setup"))
+        .stdout(contains("STREAMING"))
+        .stdout(contains("--no-stream"))
         .stdout(contains("MODEL WORKFLOW"))
         .stdout(contains("MCP WORKFLOW"));
 }

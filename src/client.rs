@@ -162,6 +162,41 @@ impl OpenAiClient {
             bail!("stream /v1/chat/completions returned {status}: {body}");
         }
 
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+
+        // Some OpenAI-compatible servers ignore stream=true and return regular JSON.
+        // Fall back to a non-stream parse so default-stream UX remains resilient.
+        if !content_type.contains("text/event-stream") {
+            let raw_text = resp
+                .text()
+                .await
+                .context("failed reading non-SSE fallback response body")?;
+
+            let raw_json: Value = serde_json::from_str(&raw_text)
+                .with_context(|| format!("failed parsing non-SSE fallback JSON: {raw_text}"))?;
+            let parsed: ChatCompletionResponse = serde_json::from_value(raw_json.clone())
+                .context("failed decoding non-SSE fallback payload")?;
+
+            if let Some(text) = parsed
+                .choices
+                .first()
+                .and_then(|c| c.message.content.as_deref())
+            {
+                on_text_delta(text)?;
+            }
+            on_chunk_json(&raw_json)?;
+
+            return Ok(ChatCompletionEnvelope {
+                response: parsed,
+                raw_json,
+            });
+        }
+
         let mut bytes_stream = resp.bytes_stream();
         let mut buf = String::new();
         let mut done = false;

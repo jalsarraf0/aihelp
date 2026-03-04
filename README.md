@@ -31,6 +31,7 @@ aihelp "Hello can you hear me?"
 ls | aihelp "what is in this directory?"
 cat script.sh | aihelp "explain what this script does and any risky commands"
 aihelp --mcp "find the right tool to search my docs for X, then summarize"
+aihelp --no-stream "same query without streaming"
 ```
 
 Windows PowerShell:
@@ -40,6 +41,7 @@ aihelp "Hello can you hear me?"
 Get-ChildItem | aihelp "what is in this directory?"
 Get-Content .\script.ps1 | aihelp "what does this script do?"
 aihelp --mcp "find docs about topic X and summarize"
+aihelp --no-stream "same query without streaming"
 ```
 
 ## Setup Flow
@@ -76,6 +78,7 @@ aihelp --setup
 - `--api-key <KEY>`
 - `--model <ID>`
 - `--stream`
+- `--no-stream`
 - `--max-stdin-bytes <N>`
 - `--timeout-secs <N>`
 - `--json`
@@ -96,6 +99,12 @@ MCP flags:
 
 `aihelp --help` includes an in-terminal manpage section with setup, model switching, MCP workflow, and troubleshooting reminders.
 
+Streaming behavior:
+
+- Streaming output is enabled by default.
+- Use `--no-stream` for a single non-streaming response.
+- Keep `--stream` for explicitness in scripts.
+
 ## Defaults
 
 - Endpoint: `http://192.168.50.2:1234`
@@ -110,6 +119,7 @@ MCP flags:
 ```toml
 endpoint = "http://192.168.50.2:1234"
 model = "openai/gpt-oss-20b"
+stream_by_default = true
 max_stdin_bytes = 200000
 timeout_secs = 60
 

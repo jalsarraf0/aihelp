@@ -35,6 +35,10 @@ MODEL WORKFLOW
   Switch default model:    aihelp --model <ID>
   One-off use + persist:   aihelp --model <ID> "question"
 
+STREAMING
+  Default behavior:        streaming output is ON
+  Disable for one run:     aihelp --no-stream "question"
+
 MCP WORKFLOW
   Enable per-run:          aihelp --mcp "question"
   Disable per-run:         aihelp --no-mcp "question"
@@ -76,6 +80,9 @@ pub struct Cli {
 
     #[arg(long)]
     pub stream: bool,
+
+    #[arg(long = "no-stream", conflicts_with = "stream")]
+    pub no_stream: bool,
 
     #[arg(long = "max-stdin-bytes")]
     pub max_stdin_bytes: Option<usize>,
@@ -272,6 +279,13 @@ fn resolve_settings(cli: &Cli, config: &AppConfig) -> EffectiveSettings {
     let model = cli.model.clone().unwrap_or_else(|| config.model.clone());
     let max_stdin_bytes = cli.max_stdin_bytes.unwrap_or(config.max_stdin_bytes);
     let timeout_secs = cli.timeout_secs.unwrap_or(config.timeout_secs);
+    let stream = if cli.no_stream {
+        false
+    } else if cli.stream {
+        true
+    } else {
+        config.stream_by_default
+    };
 
     let mcp_enabled = if cli.mcp {
         true
@@ -299,7 +313,7 @@ fn resolve_settings(cli: &Cli, config: &AppConfig) -> EffectiveSettings {
         mcp_policy,
         mcp_max_tool_calls,
         mcp_max_round_trips,
-        stream: cli.stream,
+        stream,
         json: cli.json,
         quiet: cli.quiet,
         print_model: cli.print_model,
@@ -446,7 +460,11 @@ fn print_available_flags(as_json: bool) -> Result<()> {
         },
         FlagDescriptor {
             flag: "--stream",
-            description: "Stream final assistant output.",
+            description: "Enable streaming output (enabled by default).",
+        },
+        FlagDescriptor {
+            flag: "--no-stream",
+            description: "Disable streaming output for this run.",
         },
         FlagDescriptor {
             flag: "--json",

@@ -19,6 +19,7 @@ cat script.sh | aihelp "explain what this script does and any risky commands"
 aihelp --mcp "find the right tool to search my docs for X, then summarize"
 aihelp --list-flags
 aihelp --list-models
+aihelp --model my-local-model
 ```
 
 Windows PowerShell:
@@ -30,6 +31,7 @@ Get-Content .\script.ps1 | aihelp "what does this script do?"
 aihelp --mcp "find docs about topic X and summarize"
 aihelp --list-flags
 aihelp --list-models
+aihelp --model my-local-model
 ```
 
 ## First-Run MCP Prompt
@@ -72,6 +74,8 @@ MCP:
 - `--mcp-policy <read_only|allow_list|all>`
 - `--mcp-max-tool-calls <N>`
 - `--mcp-max-round-trips <N>`
+
+`--model <ID>` can be used standalone to switch the default model in `config.toml`, or combined with a question to both run and persist that model.
 
 ## Defaults
 

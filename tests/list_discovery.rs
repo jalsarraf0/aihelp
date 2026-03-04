@@ -1,13 +1,18 @@
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::str::contains;
 use serial_test::serial;
+use tempfile::TempDir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[test]
 #[serial]
 fn list_flags_works_without_question() {
+    let config_dir = TempDir::new().expect("tempdir");
+
     cargo_bin_cmd!("aihelp")
+        .env("AIHELP_CONFIG_DIR", config_dir.path())
+        .env("AIHELP_NONINTERACTIVE", "1")
         .arg("--list-flags")
         .assert()
         .success()
@@ -20,6 +25,7 @@ fn list_flags_works_without_question() {
 #[serial]
 async fn list_models_hits_models_endpoint_only() {
     let server = MockServer::start().await;
+    let config_dir = TempDir::new().expect("tempdir");
 
     Mock::given(method("GET"))
         .and(path("/v1/models"))
@@ -41,6 +47,8 @@ async fn list_models_hits_models_endpoint_only() {
         .await;
 
     cargo_bin_cmd!("aihelp")
+        .env("AIHELP_CONFIG_DIR", config_dir.path())
+        .env("AIHELP_NONINTERACTIVE", "1")
         .arg("--endpoint")
         .arg(server.uri())
         .arg("--list-models")
@@ -54,6 +62,7 @@ async fn list_models_hits_models_endpoint_only() {
 #[serial]
 async fn list_models_json_outputs_models_array() {
     let server = MockServer::start().await;
+    let config_dir = TempDir::new().expect("tempdir");
 
     Mock::given(method("GET"))
         .and(path("/v1/models"))
@@ -65,6 +74,8 @@ async fn list_models_json_outputs_models_array() {
         .await;
 
     cargo_bin_cmd!("aihelp")
+        .env("AIHELP_CONFIG_DIR", config_dir.path())
+        .env("AIHELP_NONINTERACTIVE", "1")
         .arg("--endpoint")
         .arg(server.uri())
         .arg("--list-models")

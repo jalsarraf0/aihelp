@@ -8,6 +8,8 @@ use std::io::IsTerminal;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use serde::Serialize;
+use serde_json::json;
 use tracing_subscriber::EnvFilter;
 
 use crate::agent::{run_agent, AgentRunOptions};
@@ -23,7 +25,10 @@ use crate::prompt::read_stdin_context;
     about = "CLI helper for LM Studio + optional MCP tools"
 )]
 pub struct Cli {
-    #[arg(value_name = "QUESTION", required = true)]
+    #[arg(
+        value_name = "QUESTION",
+        required_unless_present_any = ["list_models", "list_flags"]
+    )]
     pub question: Vec<String>,
 
     #[arg(long)]
@@ -70,6 +75,12 @@ pub struct Cli {
 
     #[arg(long = "mcp-max-round-trips")]
     pub mcp_max_round_trips: Option<usize>,
+
+    #[arg(long = "list-models", conflicts_with = "list_flags")]
+    pub list_models: bool,
+
+    #[arg(long = "list-flags", conflicts_with = "list_models")]
+    pub list_flags: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -93,6 +104,15 @@ pub struct EffectiveSettings {
 pub async fn run(cli: Cli) -> Result<()> {
     install_rustls_provider();
     init_tracing(cli.quiet);
+
+    if cli.list_flags {
+        print_available_flags(cli.json)?;
+        return Ok(());
+    }
+
+    if cli.list_models {
+        return run_list_models(&cli).await;
+    }
 
     let noninteractive_forced = std::env::var("AIHELP_NONINTERACTIVE")
         .map(|v| v == "1")
@@ -227,4 +247,133 @@ fn init_tracing(quiet: bool) {
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
+async fn run_list_models(cli: &Cli) -> Result<()> {
+    let config = load_existing_config_or_default()?;
+    let settings = resolve_settings(cli, &config);
+
+    let client = OpenAiClient::new(
+        settings.endpoint.clone(),
+        settings.api_key.clone(),
+        settings.timeout_secs,
+    )?;
+
+    let mut models = client
+        .list_models()
+        .await
+        .context("failed to list models from /v1/models")?;
+    models.sort();
+
+    if settings.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "endpoint": settings.endpoint,
+                "selected_model": settings.model,
+                "models": models
+            }))?
+        );
+        return Ok(());
+    }
+
+    println!("Models available at {}:", settings.endpoint);
+    for model in &models {
+        if model == &settings.model {
+            println!("* {} (selected)", model);
+        } else {
+            println!("* {}", model);
+        }
+    }
+
+    if models.is_empty() {
+        println!("(no models returned by endpoint)");
+    }
+
+    if !settings.quiet {
+        eprintln!("Use --model <ID> to select a model for a run.");
+    }
+
+    Ok(())
+}
+
+fn load_existing_config_or_default() -> Result<AppConfig> {
+    let path = config::config_file_path()?;
+    if path.exists() {
+        return config::load_config(&path).context("failed to load existing config");
+    }
+    Ok(AppConfig::default())
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct FlagDescriptor {
+    flag: &'static str,
+    description: &'static str,
+}
+
+fn print_available_flags(as_json: bool) -> Result<()> {
+    let flags = vec![
+        FlagDescriptor {
+            flag: "--help",
+            description: "Show built-in clap help with all options.",
+        },
+        FlagDescriptor {
+            flag: "--list-flags",
+            description: "Show a curated list of useful aihelp flags.",
+        },
+        FlagDescriptor {
+            flag: "--list-models",
+            description: "List callable model IDs from <endpoint>/v1/models.",
+        },
+        FlagDescriptor {
+            flag: "--model <ID>",
+            description: "Choose model for this run (default: openai/gpt-oss-20b).",
+        },
+        FlagDescriptor {
+            flag: "--print-model",
+            description: "Print selected model to stderr before request.",
+        },
+        FlagDescriptor {
+            flag: "--endpoint <URL>",
+            description: "Override OpenAI-compatible LM Studio base URL.",
+        },
+        FlagDescriptor {
+            flag: "--api-key <KEY>",
+            description: "Optional Authorization bearer token.",
+        },
+        FlagDescriptor {
+            flag: "--stream",
+            description: "Stream final assistant output.",
+        },
+        FlagDescriptor {
+            flag: "--json",
+            description: "Emit JSON (or NDJSON for streaming).",
+        },
+        FlagDescriptor {
+            flag: "--dry-run",
+            description: "Print request payloads without calling LM Studio.",
+        },
+        FlagDescriptor {
+            flag: "--mcp / --no-mcp",
+            description: "Enable or disable MCP tools for a single run.",
+        },
+        FlagDescriptor {
+            flag: "--mcp-policy <read_only|allow_list|all>",
+            description: "Override MCP tool allow policy.",
+        },
+    ];
+
+    if as_json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({ "flags": flags }))?
+        );
+        return Ok(());
+    }
+
+    println!("aihelp flag reference:");
+    for item in flags {
+        println!("{:40} {}", item.flag, item.description);
+    }
+    Ok(())
 }

@@ -10,6 +10,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
 
 bash scripts/ci/bootstrap_cargo_audit.sh
+export PATH="${HOME}/.cargo/bin:${PATH}"
 
 cargo audit
 

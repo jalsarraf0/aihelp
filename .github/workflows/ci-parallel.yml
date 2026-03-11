@@ -1,0 +1,60 @@
+name: CI Parallel (5-8 Container Fan-out)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  parallel-checks:
+    name: Parallel Rust Checks (Fan-out)
+    runs-on: [self-hosted, Linux, X64, docker]
+    timeout-minutes: 45
+    env:
+      DOCKER_RUNNER_CACHE: /tmp/docker-runner
+      DOCKER_RUNNER_PRUNE: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize Docker runner cache
+        run: mkdir -p /tmp/docker-runner/{images,cache,artifacts}
+
+      - name: Run parallel regression suite (5 containers)
+        run: |
+          bash .github/scripts/docker-runner-parallel.sh '[
+            {
+              "name": "format-check",
+              "image": "rust:1.93-bookworm",
+              "command": "cargo fmt --all -- --check"
+            },
+            {
+              "name": "clippy-lint",
+              "image": "rust:1.93-bookworm",
+              "command": "cargo clippy --workspace --all-targets --all-features -- -D warnings"
+            },
+            {
+              "name": "compile-check",
+              "image": "rust:1.93-bookworm",
+              "command": "cargo check --workspace --all-features --all-targets"
+            },
+            {
+              "name": "unit-tests",
+              "image": "rust:1.93-bookworm",
+              "command": "cargo test --workspace --all-features --lib"
+            },
+            {
+              "name": "regression-suite",
+              "image": "rust:1.93-bookworm",
+              "command": "bash scripts/ci/full_regression.sh"
+            }
+          ]' --max-parallel 5 --prune
+
+      - name: Upload container logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-logs
+          path: /tmp/docker-runner/artifacts/
+          if-no-files-found: ignore

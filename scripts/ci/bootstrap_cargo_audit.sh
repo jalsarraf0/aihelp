@@ -27,4 +27,5 @@ curl -fsSL \
   "https://github.com/rustsec/rustsec/releases/download/cargo-audit/v${AUDIT_VERSION}/${AUDIT_ASSET}" \
   -o "${tmpdir_audit}/${AUDIT_ASSET}"
 tar -xzf "${tmpdir_audit}/${AUDIT_ASSET}" -C "${tmpdir_audit}"
+mkdir -p "${HOME}/.cargo/bin"
 install -m 0755 "${tmpdir_audit}/${AUDIT_DIR}/cargo-audit" "${HOME}/.cargo/bin/cargo-audit"

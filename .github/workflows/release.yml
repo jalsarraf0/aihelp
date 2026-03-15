@@ -8,14 +8,13 @@ on:
 jobs:
   build:
     name: build-${{ matrix.os }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, gentoo]
     permissions:
       contents: read
       id-token: write
       attestations: write
     strategy:
       fail-fast: false
-      matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
@@ -66,7 +65,7 @@ jobs:
 
   publish:
     name: publish-release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, gentoo]
     needs: build
     permissions:
       contents: write

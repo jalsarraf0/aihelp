@@ -19,7 +19,7 @@ permissions:
 jobs:
   cargo-audit:
     name: Cargo Audit
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, gentoo]
     steps:
 
       - uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
 
   cargo-deny:
     name: Cargo Deny
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, gentoo]
     steps:
 
       - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
 
   gitleaks:
     name: Gitleaks Secret Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, gentoo]
     steps:
 
       - uses: actions/checkout@v4

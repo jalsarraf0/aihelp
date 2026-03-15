@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   regression-security:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, gentoo]
     timeout-minutes: 45
     env:
       DOCKER_RUNNER_CACHE: /tmp/docker-runner
@@ -28,7 +28,7 @@ jobs:
         run: bash .github/scripts/docker-runner.sh rust:1.93-bookworm "bash scripts/ci/full_regression.sh"
 
   sanity-check:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, gentoo]
     timeout-minutes: 30
     env:
       DOCKER_RUNNER_CACHE: /tmp/docker-runner

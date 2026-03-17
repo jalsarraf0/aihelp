@@ -1,3 +1,7 @@
 /target
 **/*.rs.bk
 /docker/aihelp/runner/.env
+CLAUDE.md
+.CLAUDE.md
+AGENTS.md
+.GEMINI.md

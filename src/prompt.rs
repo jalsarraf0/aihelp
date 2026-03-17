@@ -18,7 +18,9 @@ pub fn read_stdin_context(max_bytes: usize) -> Result<Option<StdinContext>> {
     }
 
     let mut buf = Vec::new();
-    let mut handle = std::io::stdin().lock().take((max_bytes + 1) as u64);
+    let mut handle = std::io::stdin()
+        .lock()
+        .take((max_bytes as u64).saturating_add(1));
     handle
         .read_to_end(&mut buf)
         .context("failed to read stdin context")?;

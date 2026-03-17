@@ -1,0 +1,37 @@
+[package]
+name = "aihelp"
+version = "0.3.3"
+edition = "2021"
+license = "MIT"
+description = "CLI helper for LM Studio with optional MCP tool discovery"
+repository = "https://github.com/jalsarraf0/aihelp"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+bytes = "1.7"
+clap = { version = "4.5", features = ["derive"] }
+directories = "5.0"
+futures-util = "0.3"
+http = "1.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+rmcp = { version = "1.0.0", default-features = false, features = ["client", "reqwest-tls-no-provider", "transport-streamable-http-client-reqwest", "transport-child-process"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.43", features = ["macros", "rt-multi-thread", "time", "process"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+
+[dev-dependencies]
+assert_cmd = "2.1"
+predicates = "3.1"
+serial_test = "3.2"
+tempfile = "3.15"
+wiremock = "0.6"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

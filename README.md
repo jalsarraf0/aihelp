@@ -67,6 +67,7 @@ aihelp --setup
 
 - List common flags quickly: `aihelp --list-flags`
 - List callable models from endpoint: `aihelp --list-models`
+- List configured endpoints and status: `aihelp --list-endpoints`
 - Switch default model on the fly: `aihelp --model <ID>`
 
 `--model <ID>` behavior:
@@ -92,6 +93,7 @@ aihelp --setup
 - `--setup`
 - `--list-flags`
 - `--list-models`
+- `--list-endpoints`
 
 MCP flags:
 
@@ -155,6 +157,53 @@ command = "node"
 args = ["./path/to/mcp-server.js"]
 allowed_tools = ["list_things"]
 ```
+
+## Multi-Endpoint Support
+
+Configure multiple LM Studio endpoints with automatic selection:
+
+```toml
+endpoint = "http://192.168.50.2:1234"
+endpoint_strategy = "fallback"
+
+[[endpoints]]
+label = "local-arc"
+url = "http://192.168.50.5:1235"
+priority = 0
+
+[[endpoints]]
+label = "remote"
+url = "http://192.168.50.2:1234"
+priority = 1
+```
+
+Strategies:
+
+| Strategy | Behavior |
+|---|---|
+| `preferred` | Try endpoints in priority order, use first reachable (default) |
+| `fallback` | Same as preferred — try in order, skip unreachable |
+| `round_robin` | Probe all in parallel, pick first reachable by priority |
+| `model_route` | Route specific models to specific endpoints via `[model_routing]` |
+
+Model routing example:
+
+```toml
+endpoint_strategy = "model_route"
+
+[model_routing]
+"small-model" = "local-arc"
+"large-model" = "remote"
+```
+
+Override for a single run:
+
+```bash
+aihelp --endpoint http://127.0.0.1:1235 "question"
+aihelp --endpoint local-arc "question"   # match by label
+```
+
+The setup wizard auto-prepends `http://` when a bare `host:port` is entered.
 
 ## Safety Defaults
 
